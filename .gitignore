@@ -1,0 +1,9 @@
+.build/
+.cache/
+*.app/
+*.dmg
+*.zip
+.DS_Store
+Tests/.build/
+TimeSayer
+dist/

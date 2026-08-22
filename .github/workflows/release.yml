@@ -1,0 +1,64 @@
+name: Build and Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-mac:
+    name: Build macOS App & DMG
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: chmod +x build.sh
+
+      - name: Build Time Sayer App Bundle
+        run: ./build.sh
+
+      - name: Run verification tests
+        run: |
+          mkdir -p .build/cache
+          swiftc \
+            -module-cache-path .build/cache \
+            -parse-as-library \
+            Sources/TimeSayer/PreferencesManager.swift \
+            Sources/TimeSayer/TimeAnnouncer.swift \
+            Tests/TestRunner.swift \
+            -framework Cocoa \
+            -framework AVFoundation \
+            -o .build/TestRunner
+          ./build/TestRunner
+
+      - name: Package DMG and ZIP
+        run: |
+          mkdir -p dist
+
+          # Create zip archive of the .app bundle preserving macOS metadata
+          ditto -c -k --sequesterRsrc --keepParent "Time Sayer.app" "dist/Time-Sayer-macOS.zip"
+
+          # Create a staging folder with an Applications symlink for a drag-to-install DMG
+          rm -rf dmg_root
+          mkdir dmg_root
+          cp -R "Time Sayer.app" dmg_root/
+          ln -s /Applications dmg_root/Applications
+          hdiutil create -volname "Time Sayer" -srcfolder dmg_root -ov -format UDZO "dist/Time-Sayer-macOS.dmg"
+          rm -rf dmg_root
+
+      - name: Upload assets to GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release'
+        with:
+          files: |
+            dist/Time-Sayer-macOS.dmg
+            dist/Time-Sayer-macOS.zip
