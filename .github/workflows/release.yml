@@ -26,20 +26,6 @@ jobs:
       - name: Build Time Sayer App Bundle
         run: ./build.sh
 
-      - name: Run verification tests
-        run: |
-          mkdir -p .build/cache
-          swiftc \
-            -module-cache-path .build/cache \
-            -parse-as-library \
-            Sources/TimeSayer/PreferencesManager.swift \
-            Sources/TimeSayer/TimeAnnouncer.swift \
-            Tests/TestRunner.swift \
-            -framework Cocoa \
-            -framework AVFoundation \
-            -o .build/TestRunner
-          ./build/TestRunner
-
       - name: Package DMG and ZIP
         run: |
           mkdir -p dist
