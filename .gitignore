@@ -5,5 +5,5 @@
 *.zip
 .DS_Store
 Tests/.build/
-TimeSayer
+/TimeSayer
 dist/
