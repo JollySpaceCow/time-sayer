@@ -26,6 +26,13 @@ jobs:
       - name: Build Time Sayer App Bundle
         run: ./build.sh
 
+      - name: Ad-hoc code sign app bundle
+        run: |
+          # Strip any quarantine / extended attributes first
+          xattr -cr "Time Sayer.app"
+          # Ad-hoc sign — prevents macOS Gatekeeper "damaged" error on download
+          codesign --force --deep --sign - "Time Sayer.app"
+
       - name: Package DMG and ZIP
         run: |
           mkdir -p dist
