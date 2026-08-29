@@ -26,26 +26,25 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
 
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.isVisible = preferences.showInMenuBar
         if let button = statusItem.button {
             updateStatusIcon()
             button.toolTip = "Time Sayer — Menu Bar Time Announcer"
         }
         statusItem.menu = menu
+        statusItem.isVisible = preferences.showInMenuBar
     }
 
     private func updateStatusIcon() {
         guard let button = statusItem.button else { return }
 
-        let symbolName = preferences.isEnabled ? "clock.badge.waveform" : "clock.badge.xmark"
-        if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Time Sayer") {
+        let symbolName = preferences.isEnabled ? "clock" : "clock.badge.xmark"
+        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
+        if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Time Sayer")?.withSymbolConfiguration(config) {
             image.isTemplate = true
             button.image = image
-        } else {
-            // Fallback for systems where specific SF symbol may not be present
-            let fallbackImage = NSImage(systemSymbolName: "clock", accessibilityDescription: "Time Sayer")
-            fallbackImage?.isTemplate = true
-            button.image = fallbackImage
+        } else if let fallback = NSImage(systemSymbolName: "clock", accessibilityDescription: "Time Sayer")?.withSymbolConfiguration(config) {
+            fallback.isTemplate = true
+            button.image = fallback
         }
     }
 
