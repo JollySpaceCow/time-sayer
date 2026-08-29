@@ -31,31 +31,33 @@ public final class SettingsWindowController: NSWindowController, NSWindowDelegat
 
     // MARK: - Build UI
 
+    private var hintLabel: NSTextField!
+
     private func buildContent() {
         guard let contentView = window?.contentView else { return }
 
         // --- Title label ---
         let titleLabel = makeLabel("Behaviour", bold: true)
-        titleLabel.frame = NSRect(x: 20, y: 158, width: 320, height: 20)
+        titleLabel.frame = NSRect(x: 20, y: 175, width: 340, height: 20)
         contentView.addSubview(titleLabel)
 
         // --- Show in Dock ---
         showInDockCheckbox = NSButton(checkboxWithTitle: "Show in Dock", target: self, action: #selector(dockToggled))
-        showInDockCheckbox.frame = NSRect(x: 20, y: 128, width: 320, height: 22)
+        showInDockCheckbox.frame = NSRect(x: 20, y: 145, width: 340, height: 22)
         showInDockCheckbox.state = preferences.showInDock ? .on : .off
         showInDockCheckbox.toolTip = "Show Time Sayer as a regular Dock icon as well as in the menu bar"
         contentView.addSubview(showInDockCheckbox)
 
         // --- Show in Menu Bar ---
         showInMenuBarCheckbox = NSButton(checkboxWithTitle: "Show in Menu Bar", target: self, action: #selector(menuBarToggled))
-        showInMenuBarCheckbox.frame = NSRect(x: 20, y: 98, width: 320, height: 22)
+        showInMenuBarCheckbox.frame = NSRect(x: 20, y: 115, width: 340, height: 22)
         showInMenuBarCheckbox.state = preferences.showInMenuBar ? .on : .off
         showInMenuBarCheckbox.toolTip = "Show the clock icon in the menu bar. Disable to run silently in the background."
         contentView.addSubview(showInMenuBarCheckbox)
 
         // --- Open at Login ---
         openAtLoginCheckbox = NSButton(checkboxWithTitle: "Open at Login", target: self, action: #selector(loginToggled))
-        openAtLoginCheckbox.frame = NSRect(x: 20, y: 68, width: 320, height: 22)
+        openAtLoginCheckbox.frame = NSRect(x: 20, y: 85, width: 340, height: 22)
         openAtLoginCheckbox.state = preferences.openAtLogin ? .on : .off
         openAtLoginCheckbox.toolTip = "Launch Time Sayer automatically when you log in"
         contentView.addSubview(openAtLoginCheckbox)
@@ -63,19 +65,31 @@ public final class SettingsWindowController: NSWindowController, NSWindowDelegat
         // --- Separator line ---
         let separator = NSBox()
         separator.boxType = .separator
-        separator.frame = NSRect(x: 20, y: 52, width: 320, height: 1)
+        separator.frame = NSRect(x: 20, y: 70, width: 340, height: 1)
         contentView.addSubview(separator)
 
-        // --- Note label ---
-        let noteLabel = makeLabel("Changes take effect immediately.", bold: false)
-        noteLabel.textColor = .secondaryLabelColor
-        noteLabel.font = .systemFont(ofSize: 11)
-        noteLabel.frame = NSRect(x: 20, y: 22, width: 320, height: 20)
-        contentView.addSubview(noteLabel)
+        // --- Hint / Note label ---
+        hintLabel = makeLabel("", bold: false)
+        hintLabel.textColor = .secondaryLabelColor
+        hintLabel.font = .systemFont(ofSize: 11)
+        hintLabel.frame = NSRect(x: 20, y: 15, width: 340, height: 48)
+        contentView.addSubview(hintLabel)
+
+        updateHintText()
+    }
+
+    private func updateHintText() {
+        if !preferences.showInDock && !preferences.showInMenuBar {
+            hintLabel.stringValue = "💡 Tip: With both hidden, reopen Settings anytime by opening \"Time Sayer\" from Spotlight (⌘ Space) or Launchpad."
+            hintLabel.textColor = .systemBlue
+        } else {
+            hintLabel.stringValue = "Changes take effect immediately."
+            hintLabel.textColor = .secondaryLabelColor
+        }
     }
 
     private func makeLabel(_ text: String, bold: Bool) -> NSTextField {
-        let label = NSTextField(labelWithString: text)
+        let label = NSTextField(wrappingLabelWithString: text)
         label.isEditable = false
         label.isBordered = false
         label.backgroundColor = .clear
@@ -88,11 +102,13 @@ public final class SettingsWindowController: NSWindowController, NSWindowDelegat
     @objc private func dockToggled() {
         preferences.showInDock = showInDockCheckbox.state == .on
         applyActivationPolicy()
+        updateHintText()
     }
 
     @objc private func menuBarToggled() {
         preferences.showInMenuBar = showInMenuBarCheckbox.state == .on
         NotificationCenter.default.post(name: .timeSayerMenuBarVisibilityChanged, object: nil)
+        updateHintText()
     }
 
     @objc private func loginToggled() {
