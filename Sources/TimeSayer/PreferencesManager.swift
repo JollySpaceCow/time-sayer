@@ -3,6 +3,7 @@ import Foundation
 /// Defines the announcement frequency intervals.
 public enum AnnouncementInterval: String, CaseIterable, Identifiable {
     case everyMinute = "minute"
+    case everyFiveMinutes = "five_minutes"
     case everyQuarterHour = "quarter"
     case everyHalfHour = "half"
     case everyHour = "hour"
@@ -13,6 +14,8 @@ public enum AnnouncementInterval: String, CaseIterable, Identifiable {
         switch self {
         case .everyMinute:
             return "Every Minute"
+        case .everyFiveMinutes:
+            return "Every 5 Minutes"
         case .everyQuarterHour:
             return "Every 15 Minutes (Quarter Hour)"
         case .everyHalfHour:
@@ -26,6 +29,8 @@ public enum AnnouncementInterval: String, CaseIterable, Identifiable {
         switch self {
         case .everyMinute:
             return "1m"
+        case .everyFiveMinutes:
+            return "5m"
         case .everyQuarterHour:
             return "15m"
         case .everyHalfHour:

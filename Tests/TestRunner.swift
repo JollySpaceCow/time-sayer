@@ -65,6 +65,13 @@ struct TestRunner {
             assert(comp.hour == 10 && comp.minute == 15 && comp.second == 0, "Minute boundary incorrect")
         }
 
+        // Next 5-minute boundary from 10:14:25 should be 10:15:00
+        if let next5Min = announcer.calculateNextBoundaryDate(from: baseTime, interval: .everyFiveMinutes) {
+            let comp = Calendar.current.dateComponents([.hour, .minute, .second], from: next5Min)
+            print("Next 5-minute boundary from 10:14:25: \(comp.hour!):\(comp.minute!):\(comp.second!)")
+            assert(comp.hour == 10 && comp.minute == 15 && comp.second == 0, "5-minute boundary incorrect")
+        }
+
         // Next quarter boundary from 10:14:25 should be 10:15:00
         if let nextQuarter = announcer.calculateNextBoundaryDate(from: baseTime, interval: .everyQuarterHour) {
             let comp = Calendar.current.dateComponents([.hour, .minute, .second], from: nextQuarter)

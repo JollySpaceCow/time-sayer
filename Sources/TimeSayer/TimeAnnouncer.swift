@@ -131,6 +131,8 @@ public final class TimeAnnouncer: NSObject, AVSpeechSynthesizerDelegate, @unchec
         switch interval {
         case .everyMinute:
             intervalMinutes = 1
+        case .everyFiveMinutes:
+            intervalMinutes = 5
         case .everyQuarterHour:
             intervalMinutes = 15
         case .everyHalfHour:
