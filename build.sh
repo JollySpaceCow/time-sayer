@@ -19,6 +19,10 @@ swiftc \
 
 chmod +x "${BUNDLE_NAME}/Contents/MacOS/TimeSayer"
 
+if [ -f "Resources/AppIcon.icns" ]; then
+    cp "Resources/AppIcon.icns" "${BUNDLE_NAME}/Contents/Resources/AppIcon.icns"
+fi
+
 echo "📦 Generating Info.plist..."
 cat <<EOF > "${BUNDLE_NAME}/Contents/Info.plist"
 <?xml version="1.0" encoding="UTF-8"?>
@@ -33,6 +37,8 @@ cat <<EOF > "${BUNDLE_NAME}/Contents/Info.plist"
     <string>${APP_NAME}</string>
     <key>CFBundleDisplayName</key>
     <string>${APP_NAME}</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
