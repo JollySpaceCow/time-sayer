@@ -88,6 +88,9 @@ public final class PreferencesManager {
         static let timeFormat = "TimeSayer_timeFormat"
         static let speechVolume = "TimeSayer_speechVolume"
         static let speechRate = "TimeSayer_speechRate"
+        static let showInDock = "TimeSayer_showInDock"
+        static let showInMenuBar = "TimeSayer_showInMenuBar"
+        static let openAtLogin = "TimeSayer_openAtLogin"
     }
 
     private let defaults = UserDefaults.standard
@@ -114,6 +117,15 @@ public final class PreferencesManager {
         }
         if defaults.object(forKey: Keys.speechRate) == nil {
             defaults.set(0.5, forKey: Keys.speechRate)
+        }
+        if defaults.object(forKey: Keys.showInDock) == nil {
+            defaults.set(false, forKey: Keys.showInDock)
+        }
+        if defaults.object(forKey: Keys.showInMenuBar) == nil {
+            defaults.set(true, forKey: Keys.showInMenuBar)
+        }
+        if defaults.object(forKey: Keys.openAtLogin) == nil {
+            defaults.set(false, forKey: Keys.openAtLogin)
         }
     }
 
@@ -192,5 +204,26 @@ public final class PreferencesManager {
     public var speechRate: Float {
         get { defaults.float(forKey: Keys.speechRate) }
         set { defaults.set(newValue, forKey: Keys.speechRate) }
+    }
+
+    /// Whether to show the app as a regular Dock icon.
+    public var showInDock: Bool {
+        get { defaults.bool(forKey: Keys.showInDock) }
+        set { defaults.set(newValue, forKey: Keys.showInDock) }
+    }
+
+    /// Whether to show the menu bar status item.
+    public var showInMenuBar: Bool {
+        get {
+            // Default to true if key is absent (handled in init, but belt-and-braces)
+            defaults.object(forKey: Keys.showInMenuBar) == nil ? true : defaults.bool(forKey: Keys.showInMenuBar)
+        }
+        set { defaults.set(newValue, forKey: Keys.showInMenuBar) }
+    }
+
+    /// Whether to launch Time Sayer automatically at login.
+    public var openAtLogin: Bool {
+        get { defaults.bool(forKey: Keys.openAtLogin) }
+        set { defaults.set(newValue, forKey: Keys.openAtLogin) }
     }
 }

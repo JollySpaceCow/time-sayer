@@ -2,12 +2,12 @@ import Foundation
 import AVFoundation
 import AppKit
 
-/// Handles speech synthesis and wall-clock time alignment scheduling.
+/// Handles speech synthesis and high-precision wall-clock time alignment scheduling.
 public final class TimeAnnouncer: NSObject, AVSpeechSynthesizerDelegate, @unchecked Sendable {
     public static let shared = TimeAnnouncer()
 
     private let synthesizer = AVSpeechSynthesizer()
-    private var scheduledTimer: Timer?
+    private var scheduledTimer: DispatchSourceTimer?
     private let preferences = PreferencesManager.shared
 
     // Callback on announcement events if needed
@@ -18,7 +18,7 @@ public final class TimeAnnouncer: NSObject, AVSpeechSynthesizerDelegate, @unchec
         synthesizer.delegate = self
     }
 
-    /// Initialises the scheduling based on current preferences.
+    /// Initialises scheduling based on current preferences.
     public func startScheduling() {
         cancelScheduling()
         guard preferences.isEnabled else { return }
@@ -28,7 +28,7 @@ public final class TimeAnnouncer: NSObject, AVSpeechSynthesizerDelegate, @unchec
 
     /// Stops any active timers.
     public func cancelScheduling() {
-        scheduledTimer?.invalidate()
+        scheduledTimer?.cancel()
         scheduledTimer = nil
     }
 
@@ -95,7 +95,7 @@ public final class TimeAnnouncer: NSObject, AVSpeechSynthesizerDelegate, @unchec
         }
     }
 
-    /// Schedules the timer to fire at the exact boundary of the next interval.
+    /// Schedules the timer to fire at the exact wall-clock boundary of the next interval.
     private func scheduleNextAnnouncement() {
         let now = Date()
         let interval = preferences.interval
@@ -104,77 +104,62 @@ public final class TimeAnnouncer: NSObject, AVSpeechSynthesizerDelegate, @unchec
             return
         }
 
-        let timeInterval = max(1.0, nextDate.timeIntervalSince(now))
+        let timeInterval = max(0.05, nextDate.timeIntervalSince(now))
 
-        scheduledTimer = Timer.scheduledTimer(withTimeInterval: timeInterval, repeats: false) { [weak self] _ in
+        let timer = DispatchSource.makeTimerSource(flags: .strict, queue: .main)
+        timer.schedule(deadline: .now() + timeInterval, leeway: .nanoseconds(0))
+        timer.setEventHandler { [weak self] in
             guard let self = self else { return }
             if self.preferences.isEnabled {
-                self.announceCurrentTime()
+                let text = self.formatSpokenTime(for: nextDate, style: self.preferences.announcementStyle)
+                self.speak(text: text)
             }
             self.scheduleNextAnnouncement()
         }
+        timer.resume()
+        scheduledTimer = timer
     }
 
-    /// Calculates the exact next wall-clock boundary date.
+    /// Calculates the exact next wall-clock boundary date (e.g. strictly :00 on the hour, or :00/:15/:30/:45 on the quarter hour).
     public func calculateNextBoundaryDate(from date: Date, interval: AnnouncementInterval) -> Date? {
         let calendar = Calendar.current
-        var components = DateComponents()
+        let currentSecond = calendar.component(.second, from: date)
+        let currentNanosecond = calendar.component(.nanosecond, from: date)
+        let currentMinute = calendar.component(.minute, from: date)
+
+        let intervalMinutes: Int
+        switch interval {
+        case .everyMinute:
+            intervalMinutes = 1
+        case .everyQuarterHour:
+            intervalMinutes = 15
+        case .everyHalfHour:
+            intervalMinutes = 30
+        case .everyHour:
+            intervalMinutes = 60
+        }
+
+        let minuteOffset = currentMinute % intervalMinutes
+        let isExactlyOnBoundary = (minuteOffset == 0 && currentSecond == 0 && currentNanosecond == 0)
+
+        let minutesToAdd: Int
+        if isExactlyOnBoundary {
+            minutesToAdd = intervalMinutes
+        } else {
+            minutesToAdd = intervalMinutes - minuteOffset
+        }
+
+        // Truncate current date down to the beginning of the minute (:00.000)
+        var components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
         components.second = 0
         components.nanosecond = 0
 
-        switch interval {
-        case .everyMinute:
-            // Next minute boundary (:00 seconds)
-            return calendar.nextDate(
-                after: date,
-                matching: components,
-                matchingPolicy: .strict,
-                direction: .forward
-            )
-
-        case .everyQuarterHour:
-            // Quarter hours: :00, :15, :30, :45
-            let targetMinutes = [0, 15, 30, 45]
-            var candidates: [Date] = []
-            for m in targetMinutes {
-                var comp = DateComponents()
-                comp.minute = m
-                comp.second = 0
-                comp.nanosecond = 0
-                if let next = calendar.nextDate(after: date, matching: comp, matchingPolicy: .nextTime, direction: .forward) {
-                    candidates.append(next)
-                }
-            }
-            return candidates.min()
-
-        case .everyHalfHour:
-            // Half hours: :00, :30
-            let targetMinutes = [0, 30]
-            var candidates: [Date] = []
-            for m in targetMinutes {
-                var comp = DateComponents()
-                comp.minute = m
-                comp.second = 0
-                comp.nanosecond = 0
-                if let next = calendar.nextDate(after: date, matching: comp, matchingPolicy: .nextTime, direction: .forward) {
-                    candidates.append(next)
-                }
-            }
-            return candidates.min()
-
-        case .everyHour:
-            // Hourly: :00
-            var comp = DateComponents()
-            comp.minute = 0
-            comp.second = 0
-            comp.nanosecond = 0
-            return calendar.nextDate(
-                after: date,
-                matching: comp,
-                matchingPolicy: .strict,
-                direction: .forward
-            )
+        guard let baseMinuteDate = calendar.date(from: components) else {
+            return nil
         }
+
+        // Add exact minutes to arrive precisely at the next interval boundary
+        return calendar.date(byAdding: .minute, value: minutesToAdd, to: baseMinuteDate)
     }
 
     /// Formats the current time into spoken natural text according to chosen style and 12/24-hour setting.
@@ -257,8 +242,7 @@ public final class TimeAnnouncer: NSObject, AVSpeechSynthesizerDelegate, @unchec
             11: "eleven", 12: "twelve"
         ]
         let currentHourWord = numberWords[hour12] ?? "\(hour12)"
-        let nextHour12 = (hour12 % 12) + 1
-        let nextHourWord = numberWords[nextHour12] ?? "\(nextHour12)"
+        let nextHourWord = numberWords[(hour12 % 12) + 1] ?? "\((hour12 % 12) + 1)"
 
         let timeOfDay: String
         switch hour24 {

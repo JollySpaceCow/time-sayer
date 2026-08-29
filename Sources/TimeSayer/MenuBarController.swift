@@ -14,10 +14,19 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         setupStatusItem()
         buildMenu()
         menu.delegate = self
+
+        // Observe menu bar visibility changes from the Settings window
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(menuBarVisibilityChanged),
+            name: .timeSayerMenuBarVisibilityChanged,
+            object: nil
+        )
     }
 
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem.isVisible = preferences.showInMenuBar
         if let button = statusItem.button {
             updateStatusIcon()
             button.toolTip = "Time Sayer — Menu Bar Time Announcer"
@@ -165,6 +174,15 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         menu.addItem(rateMenuItem)
 
         menu.addItem(NSMenuItem.separator())
+
+        // Settings
+        let settingsItem = NSMenuItem(
+            title: "Settings…",
+            action: #selector(settingsClicked),
+            keyEquivalent: ","
+        )
+        settingsItem.target = self
+        menu.addItem(settingsItem)
 
         // About / Information
         let aboutItem = NSMenuItem(title: "About Time Sayer", action: #selector(aboutClicked), keyEquivalent: "")
@@ -357,6 +375,14 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         guard let rate = sender.representedObject as? Float else { return }
         preferences.speechRate = rate
         buildMenu()
+    }
+
+    @objc private func settingsClicked() {
+        SettingsWindowController.shared.showSettings()
+    }
+
+    @objc private func menuBarVisibilityChanged() {
+        statusItem.isVisible = preferences.showInMenuBar
     }
 
     @objc private func aboutClicked() {
