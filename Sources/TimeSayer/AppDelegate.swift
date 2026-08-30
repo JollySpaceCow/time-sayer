@@ -11,6 +11,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Initialise the menu bar interface
         menuBarController = MenuBarController()
 
+        // Initialise system-wide global hotkey (⌥⌘A)
+        GlobalHotKeyManager.shared.setup()
+
         // Start high-precision scheduling for announcements
         TimeAnnouncer.shared.startScheduling()
     }

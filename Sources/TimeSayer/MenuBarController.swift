@@ -92,12 +92,13 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
-        // 3. Quick Action: Announce Time Now
+        // 3. Quick Action: Announce Time Now (⌥⌘A)
         let announceNowItem = NSMenuItem(
             title: "Announce Time Now",
             action: #selector(announceNowClicked),
             keyEquivalent: "a"
         )
+        announceNowItem.keyEquivalentModifierMask = [.command, .option]
         announceNowItem.target = self
         menu.addItem(announceNowItem)
 

@@ -15,7 +15,8 @@ swiftc \
     -o "${BUNDLE_NAME}/Contents/MacOS/TimeSayer" \
     Sources/TimeSayer/*.swift \
     -framework Cocoa \
-    -framework AVFoundation
+    -framework AVFoundation \
+    -framework Carbon
 
 chmod +x "${BUNDLE_NAME}/Contents/MacOS/TimeSayer"
 
