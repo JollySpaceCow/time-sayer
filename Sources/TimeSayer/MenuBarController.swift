@@ -1,7 +1,7 @@
 import Cocoa
 import AVFoundation
 
-/// Manages the macOS menu bar status item and its interactive menu.
+/// Manages the streamlined macOS menu bar status item and its clean menu.
 public final class MenuBarController: NSObject, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let preferences = PreferencesManager.shared
@@ -15,11 +15,19 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         buildMenu()
         menu.delegate = self
 
-        // Observe menu bar visibility changes from the Settings window
+        // Observe menu bar visibility changes
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(menuBarVisibilityChanged),
             name: .timeSayerMenuBarVisibilityChanged,
+            object: nil
+        )
+
+        // Observe general preference changes (e.g. from Settings window)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(preferencesChanged),
+            name: .timeSayerPreferencesChanged,
             object: nil
         )
     }
@@ -52,11 +60,11 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         buildMenu()
     }
 
-    /// Constructs the menu dynamically to reflect up-to-date state.
+    /// Constructs the clean, streamlined menu.
     public func buildMenu() {
         menu.removeAllItems()
 
-        // Status Header Item
+        // 1. Status Header
         let statusTitle: String
         if preferences.isEnabled {
             statusTitle = "Time Sayer: Active (\(preferences.interval.shortTitle))"
@@ -67,7 +75,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         headerItem.isEnabled = false
         menu.addItem(headerItem)
 
-        // Next announcement time preview
+        // 2. Next announcement time preview
         if preferences.isEnabled,
            let nextDate = announcer.calculateNextBoundaryDate(from: Date(), interval: preferences.interval) {
             let formatter = DateFormatter()
@@ -84,7 +92,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
-        // Quick Action: Announce Time Now
+        // 3. Quick Action: Announce Time Now
         let announceNowItem = NSMenuItem(
             title: "Announce Time Now",
             action: #selector(announceNowClicked),
@@ -93,88 +101,19 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         announceNowItem.target = self
         menu.addItem(announceNowItem)
 
-        menu.addItem(NSMenuItem.separator())
-
-        // Active Toggle
-        let enableToggleItem = NSMenuItem(
-            title: "Enable Time Announcements",
+        // 4. Quick Action: Pause / Resume Toggle
+        let toggleTitle = preferences.isEnabled ? "Pause Announcements" : "Resume Announcements"
+        let toggleItem = NSMenuItem(
+            title: toggleTitle,
             action: #selector(toggleEnableClicked),
-            keyEquivalent: ""
+            keyEquivalent: "p"
         )
-        enableToggleItem.target = self
-        enableToggleItem.state = preferences.isEnabled ? .on : .off
-        menu.addItem(enableToggleItem)
-
-        // Interval Submenu
-        let intervalMenuItem = NSMenuItem(title: "Frequency Interval", action: nil, keyEquivalent: "")
-        let intervalSubmenu = NSMenu(title: "Frequency Interval")
-        for interval in AnnouncementInterval.allCases {
-            let item = NSMenuItem(
-                title: interval.title,
-                action: #selector(intervalSelected(_:)),
-                keyEquivalent: ""
-            )
-            item.target = self
-            item.representedObject = interval
-            item.state = (preferences.interval == interval) ? .on : .off
-            intervalSubmenu.addItem(item)
-        }
-        intervalMenuItem.submenu = intervalSubmenu
-        menu.addItem(intervalMenuItem)
-
-        // Announcement Style Submenu
-        let styleMenuItem = NSMenuItem(title: "Announcement Phrasing", action: nil, keyEquivalent: "")
-        let styleSubmenu = NSMenu(title: "Announcement Phrasing")
-        for style in AnnouncementStyle.allCases {
-            let item = NSMenuItem(
-                title: style.title,
-                action: #selector(styleSelected(_:)),
-                keyEquivalent: ""
-            )
-            item.target = self
-            item.representedObject = style
-            item.state = (preferences.announcementStyle == style) ? .on : .off
-            styleSubmenu.addItem(item)
-        }
-        styleMenuItem.submenu = styleSubmenu
-        menu.addItem(styleMenuItem)
-
-        // Time Format (12h vs 24h) Submenu
-        let formatMenuItem = NSMenuItem(title: "Time Format (12h / 24h)", action: nil, keyEquivalent: "")
-        let formatSubmenu = NSMenu(title: "Time Format")
-        for format in TimeFormatSetting.allCases {
-            let currentDetail = format == .system ? (PreferencesManager.isSystem24HourFormat() ? " [System: 24h]" : " [System: 12h]") : ""
-            let item = NSMenuItem(
-                title: "\(format.title)\(currentDetail)",
-                action: #selector(formatSelected(_:)),
-                keyEquivalent: ""
-            )
-            item.target = self
-            item.representedObject = format
-            item.state = (preferences.timeFormat == format) ? .on : .off
-            formatSubmenu.addItem(item)
-        }
-        formatMenuItem.submenu = formatSubmenu
-        menu.addItem(formatMenuItem)
-
-        // Voices Submenu
-        let voiceMenuItem = NSMenuItem(title: "System Voice", action: nil, keyEquivalent: "")
-        voiceMenuItem.submenu = createVoiceSubmenu()
-        menu.addItem(voiceMenuItem)
-
-        // Volume Submenu
-        let volumeMenuItem = NSMenuItem(title: "Volume", action: nil, keyEquivalent: "")
-        volumeMenuItem.submenu = createVolumeSubmenu()
-        menu.addItem(volumeMenuItem)
-
-        // Speech Rate Submenu
-        let rateMenuItem = NSMenuItem(title: "Speech Speed", action: nil, keyEquivalent: "")
-        rateMenuItem.submenu = createRateSubmenu()
-        menu.addItem(rateMenuItem)
+        toggleItem.target = self
+        menu.addItem(toggleItem)
 
         menu.addItem(NSMenuItem.separator())
 
-        // Settings
+        // 5. Open Settings Window (⌘,)
         let settingsItem = NSMenuItem(
             title: "Settings…",
             action: #selector(settingsClicked),
@@ -183,14 +122,18 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         settingsItem.target = self
         menu.addItem(settingsItem)
 
-        // About / Information
-        let aboutItem = NSMenuItem(title: "About Time Sayer", action: #selector(aboutClicked), keyEquivalent: "")
+        // 6. About
+        let aboutItem = NSMenuItem(
+            title: "About Time Sayer",
+            action: #selector(aboutClicked),
+            keyEquivalent: ""
+        )
         aboutItem.target = self
         menu.addItem(aboutItem)
 
         menu.addItem(NSMenuItem.separator())
 
-        // Quit Item
+        // 7. Quit (⌘Q)
         let quitItem = NSMenuItem(
             title: "Quit Time Sayer",
             action: #selector(quitClicked),
@@ -200,127 +143,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         menu.addItem(quitItem)
     }
 
-    private func createVoiceSubmenu() -> NSMenu {
-        let voiceMenu = NSMenu(title: "System Voice")
-        let currentVoice = preferences.voiceIdentifier
-
-        // Siri Australian Male System Voice Option
-        let siriMaleItem = NSMenuItem(
-            title: "Siri Australian Male (System Voice) ★",
-            action: #selector(voiceSelected(_:)),
-            keyEquivalent: ""
-        )
-        siriMaleItem.target = self
-        siriMaleItem.representedObject = "siri_male"
-        siriMaleItem.state = (currentVoice == "siri_male" || currentVoice == "system" || currentVoice == "Gordon") ? .on : .off
-        voiceMenu.addItem(siriMaleItem)
-
-        voiceMenu.addItem(NSMenuItem.separator())
-
-        // Standard System Voices Section
-        let standardHeader = NSMenuItem(title: "— Other System Voices —", action: nil, keyEquivalent: "")
-        standardHeader.isEnabled = false
-        voiceMenu.addItem(standardHeader)
-
-        // Karen (Standard Australian)
-        let karenItem = NSMenuItem(
-            title: "Karen (Standard Australian English)",
-            action: #selector(voiceSelected(_:)),
-            keyEquivalent: ""
-        )
-        karenItem.target = self
-        karenItem.representedObject = "Karen"
-        karenItem.state = (currentVoice == "Karen") ? .on : .off
-        voiceMenu.addItem(karenItem)
-
-        let allVoices = announcer.availableVoices()
-        let englishVoices = allVoices.filter { $0.language.lowercased().hasPrefix("en") && !$0.name.contains("Karen") }
-        let otherVoices = allVoices.filter { !$0.language.lowercased().hasPrefix("en") }
-
-        for voice in englishVoices {
-            let localeName = Locale.current.localizedString(forIdentifier: voice.language) ?? voice.language
-            let item = NSMenuItem(
-                title: "\(voice.name) (\(localeName))",
-                action: #selector(voiceSelected(_:)),
-                keyEquivalent: ""
-            )
-            item.target = self
-            item.representedObject = voice.identifier
-            item.state = (currentVoice == voice.identifier) ? .on : .off
-            voiceMenu.addItem(item)
-        }
-
-        if !otherVoices.isEmpty {
-            voiceMenu.addItem(NSMenuItem.separator())
-            let otherMenuItem = NSMenuItem(title: "Other Languages", action: nil, keyEquivalent: "")
-            let otherSubmenu = NSMenu(title: "Other Languages")
-
-            for voice in otherVoices {
-                let localeName = Locale.current.localizedString(forIdentifier: voice.language) ?? voice.language
-                let item = NSMenuItem(
-                    title: "\(voice.name) (\(localeName))",
-                    action: #selector(voiceSelected(_:)),
-                    keyEquivalent: ""
-                )
-                item.target = self
-                item.representedObject = voice.identifier
-                item.state = (currentVoice == voice.identifier) ? .on : .off
-                otherSubmenu.addItem(item)
-            }
-            otherMenuItem.submenu = otherSubmenu
-            voiceMenu.addItem(otherMenuItem)
-        }
-
-        return voiceMenu
-    }
-
-    private func createVolumeSubmenu() -> NSMenu {
-        let volumeMenu = NSMenu(title: "Volume")
-        let levels: [(String, Float)] = [
-            ("100%", 1.0),
-            ("75%", 0.75),
-            ("50%", 0.50),
-            ("25%", 0.25)
-        ]
-
-        for (label, value) in levels {
-            let item = NSMenuItem(
-                title: label,
-                action: #selector(volumeSelected(_:)),
-                keyEquivalent: ""
-            )
-            item.target = self
-            item.representedObject = value
-            item.state = (abs(preferences.speechVolume - value) < 0.05) ? .on : .off
-            volumeMenu.addItem(item)
-        }
-        return volumeMenu
-    }
-
-    private func createRateSubmenu() -> NSMenu {
-        let rateMenu = NSMenu(title: "Speech Speed")
-        let rates: [(String, Float)] = [
-            ("Slower (0.4x)", AVSpeechUtteranceDefaultSpeechRate * 0.8),
-            ("Normal (Default)", AVSpeechUtteranceDefaultSpeechRate),
-            ("Faster (1.2x)", AVSpeechUtteranceDefaultSpeechRate * 1.2),
-            ("Very Fast (1.4x)", AVSpeechUtteranceDefaultSpeechRate * 1.4)
-        ]
-
-        for (label, value) in rates {
-            let item = NSMenuItem(
-                title: label,
-                action: #selector(rateSelected(_:)),
-                keyEquivalent: ""
-            )
-            item.target = self
-            item.representedObject = value
-            item.state = (abs(preferences.speechRate - value) < 0.03) ? .on : .off
-            rateMenu.addItem(item)
-        }
-        return rateMenu
-    }
-
-    // MARK: - Action Handlers
+    // MARK: - Actions
 
     @objc private func announceNowClicked() {
         announcer.announceCurrentTime()
@@ -335,45 +158,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
             announcer.cancelScheduling()
         }
         buildMenu()
-    }
-
-    @objc private func intervalSelected(_ sender: NSMenuItem) {
-        guard let interval = sender.representedObject as? AnnouncementInterval else { return }
-        preferences.interval = interval
-        announcer.reschedule()
-        buildMenu()
-    }
-
-    @objc private func styleSelected(_ sender: NSMenuItem) {
-        guard let style = sender.representedObject as? AnnouncementStyle else { return }
-        preferences.announcementStyle = style
-        buildMenu()
-    }
-
-    @objc private func formatSelected(_ sender: NSMenuItem) {
-        guard let format = sender.representedObject as? TimeFormatSetting else { return }
-        preferences.timeFormat = format
-        buildMenu()
-    }
-
-    @objc private func voiceSelected(_ sender: NSMenuItem) {
-        let voiceId = (sender.representedObject as? String) ?? "system"
-        preferences.voiceIdentifier = voiceId
-        buildMenu()
-        // Preview sample speech with chosen voice
-        announcer.speak(text: "Time Sayer voice selected.")
-    }
-
-    @objc private func volumeSelected(_ sender: NSMenuItem) {
-        guard let volume = sender.representedObject as? Float else { return }
-        preferences.speechVolume = volume
-        buildMenu()
-    }
-
-    @objc private func rateSelected(_ sender: NSMenuItem) {
-        guard let rate = sender.representedObject as? Float else { return }
-        preferences.speechRate = rate
-        buildMenu()
+        NotificationCenter.default.post(name: .timeSayerPreferencesChanged, object: nil)
     }
 
     @objc private func settingsClicked() {
@@ -384,10 +169,15 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         statusItem.isVisible = preferences.showInMenuBar
     }
 
+    @objc private func preferencesChanged() {
+        updateStatusIcon()
+        buildMenu()
+    }
+
     @objc private func aboutClicked() {
         let alert = NSAlert()
         alert.messageText = "Time Sayer"
-        alert.informativeText = "A lightweight macOS menu bar application that announces the time at your chosen interval using the macOS system voice.\n\nCreated with native Swift & AppKit."
+        alert.informativeText = "A lightweight macOS menu bar application that announces the time at your chosen interval using the Siri Australian Male system voice.\n\nVersion 1.1.0\nCreated with native Swift & AppKit."
         alert.alertStyle = .informational
         alert.addButton(withTitle: "OK")
         alert.runModal()
