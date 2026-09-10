@@ -16,6 +16,23 @@ public final class TimeAnnouncer: NSObject, AVSpeechSynthesizerDelegate, @unchec
     private override init() {
         super.init()
         synthesizer.delegate = self
+
+        // Observe macOS wake-from-sleep to re-sync the timer immediately.
+        // Without this, a DispatchSourceTimer resumes from where it paused,
+        // firing at the old pre-sleep boundary time and speaking a stale time.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(systemDidWake),
+            name: NSWorkspace.didWakeNotification,
+            object: nil
+        )
+    }
+
+    @objc private func systemDidWake() {
+        guard preferences.isEnabled else { return }
+        print("Time Sayer: System woke from sleep — rescheduling timer.")
+        cancelScheduling()
+        scheduleNextAnnouncement()
     }
 
     /// Initialises scheduling based on current preferences.
@@ -110,8 +127,24 @@ public final class TimeAnnouncer: NSObject, AVSpeechSynthesizerDelegate, @unchec
         timer.schedule(deadline: .now() + timeInterval, leeway: .nanoseconds(0))
         timer.setEventHandler { [weak self] in
             guard let self = self else { return }
+
+            let now = Date()
+
+            // If the timer fires significantly late (e.g. after Mac sleep/wake),
+            // the scheduled boundary is stale. Skip the announcement and
+            // immediately reschedule from the actual current time instead.
+            let drift = now.timeIntervalSince(nextDate)
+            if drift > 90.0 {
+                print("Time Sayer: Stale timer fired \(Int(drift))s late — skipping stale announcement and rescheduling.")
+                self.scheduleNextAnnouncement()
+                return
+            }
+
             if self.preferences.isEnabled {
-                let text = self.formatSpokenTime(for: nextDate, style: self.preferences.announcementStyle)
+                // Always speak the ACTUAL current time, not the pre-bound
+                // boundary — this prevents saying a past time if fired even
+                // a few seconds late.
+                let text = self.formatSpokenTime(for: now, style: self.preferences.announcementStyle)
                 self.speak(text: text)
             }
             self.scheduleNextAnnouncement()
