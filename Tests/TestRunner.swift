@@ -93,6 +93,17 @@ struct TestRunner {
             assert(comp.hour == 11 && comp.minute == 0 && comp.second == 0, "Hour boundary incorrect")
         }
 
-        print("🎉 All 12-hour and 24-hour verification checks passed successfully!")
+        // Test boundary timing protection against saying one minute before (e.g. 12:59:59.8 -> 1:00 PM)
+        let justBeforeHour = Calendar.current.date(from: DateComponents(year: 2026, month: 8, day: 22, hour: 12, minute: 59, second: 59))!.addingTimeInterval(0.8)
+        let justBeforeHourText = announcer.formatSpokenTime(for: justBeforeHour, style: .conversational, is24Hour: false)
+        print("12:59:59.8 format result: \(justBeforeHourText)")
+        assert(justBeforeHourText == "It's 1 o'clock PM.", "Boundary jitter protection failed: should round 12:59:59.8 up to 1:00 PM")
+
+        let justBeforeQuarter = Calendar.current.date(from: DateComponents(year: 2026, month: 8, day: 22, hour: 13, minute: 14, second: 59))!.addingTimeInterval(0.9)
+        let justBeforeQuarterText = announcer.formatSpokenTime(for: justBeforeQuarter, style: .casual, is24Hour: false)
+        print("13:14:59.9 format result: \(justBeforeQuarterText)")
+        assert(justBeforeQuarterText == "Quarter past one.", "Boundary jitter protection failed: should round 13:14:59.9 up to Quarter past one")
+
+        print("🎉 All verification checks passed successfully!")
     }
 }

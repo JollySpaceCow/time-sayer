@@ -177,6 +177,7 @@ public final class SettingsWindowController: NSWindowController, NSWindowDelegat
         contentView.addSubview(volLabel)
 
         volumeSlider = NSSlider(value: Double(preferences.speechVolume), minValue: 0.1, maxValue: 1.0, target: self, action: #selector(volumeChanged))
+        volumeSlider.isContinuous = true
         volumeSlider.frame = NSRect(x: 140, y: y, width: 250, height: 20)
         contentView.addSubview(volumeSlider)
 

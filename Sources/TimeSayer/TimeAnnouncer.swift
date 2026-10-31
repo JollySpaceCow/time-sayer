@@ -62,7 +62,7 @@ public final class TimeAnnouncer: NSObject, AVSpeechSynthesizerDelegate, @unchec
 
     private var activeSpeechProcess: Process?
 
-    /// Speaks the given text using the selected voice and volume.
+    /// Speaks the given text using the selected voice, volume, and speech rate.
     public func speak(text: String, completion: (() -> Void)? = nil) {
         // Cancel any active speech
         if synthesizer.isSpeaking {
@@ -83,14 +83,23 @@ public final class TimeAnnouncer: NSObject, AVSpeechSynthesizerDelegate, @unchec
         let escapedText = text.replacingOccurrences(of: "\\", with: "\\\\")
                               .replacingOccurrences(of: "\"", with: "\\\"")
 
-        let script: String
-        if voiceId == "siri_male" || voiceId == "system" || voiceId == "Gordon" || voiceId.isEmpty {
-            // Uses macOS default AppleScript speech which connects directly to the Siri Australian Male voice
-            script = "say \"\(escapedText)\""
-        } else {
+        // Volume: AppleScript accepts a real number from 0.0 to 1.0
+        let volume = max(0.0, min(1.0, Double(preferences.speechVolume)))
+        let formattedVolume = String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), volume)
+
+        // Speech rate: convert relative multiplier (where 0.5 is default 1.0x) to words per minute
+        let rateMultiplier = Double(preferences.speechRate) / Double(AVSpeechUtteranceDefaultSpeechRate)
+        let wpm = max(90, min(360, Int(round(rateMultiplier * 180.0))))
+
+        var scriptParts: [String] = ["say \"\(escapedText)\""]
+        if voiceId != "siri_male" && voiceId != "system" && voiceId != "Gordon" && !voiceId.isEmpty {
             let voiceName = voiceId.contains(".") ? (voiceId.components(separatedBy: ".").last ?? voiceId) : voiceId
-            script = "say \"\(escapedText)\" using \"\(voiceName)\""
+            scriptParts.append("using \"\(voiceName)\"")
         }
+        scriptParts.append("volume \(formattedVolume)")
+        scriptParts.append("speaking rate \(wpm)")
+
+        let script = scriptParts.joined(separator: " ")
 
         process.arguments = ["-e", script]
 
@@ -113,41 +122,47 @@ public final class TimeAnnouncer: NSObject, AVSpeechSynthesizerDelegate, @unchec
     }
 
     /// Schedules the timer to fire at the exact wall-clock boundary of the next interval.
-    private func scheduleNextAnnouncement() {
+    private func scheduleNextAnnouncement(after date: Date? = nil) {
         let now = Date()
         let interval = preferences.interval
+        let calculationBase = date.map { max($0, now) } ?? now
 
-        guard let nextDate = calculateNextBoundaryDate(from: now, interval: interval) else {
+        guard let nextDate = calculateNextBoundaryDate(from: calculationBase, interval: interval) else {
             return
         }
 
-        let timeInterval = max(0.05, nextDate.timeIntervalSince(now))
+        let timeInterval = nextDate.timeIntervalSince(now)
+        // Add a 50ms buffer past the exact second boundary to guarantee
+        // that the wall clock has crossed into the new minute and to avoid
+        // monotonic clock drift waking the timer early.
+        let fireDelay = max(0.05, timeInterval + 0.05)
 
         let timer = DispatchSource.makeTimerSource(flags: .strict, queue: .main)
-        timer.schedule(deadline: .now() + timeInterval, leeway: .nanoseconds(0))
+        timer.schedule(deadline: .now() + fireDelay, leeway: .nanoseconds(0))
         timer.setEventHandler { [weak self] in
             guard let self = self else { return }
 
-            let now = Date()
+            let currentWallTime = Date()
+            let drift = currentWallTime.timeIntervalSince(nextDate)
 
             // If the timer fires significantly late (e.g. after Mac sleep/wake),
             // the scheduled boundary is stale. Skip the announcement and
             // immediately reschedule from the actual current time instead.
-            let drift = now.timeIntervalSince(nextDate)
-            if drift > 90.0 {
+            if drift > 30.0 {
                 print("Time Sayer: Stale timer fired \(Int(drift))s late — skipping stale announcement and rescheduling.")
                 self.scheduleNextAnnouncement()
                 return
             }
 
             if self.preferences.isEnabled {
-                // Always speak the ACTUAL current time, not the pre-bound
-                // boundary — this prevents saying a past time if fired even
-                // a few seconds late.
-                let text = self.formatSpokenTime(for: now, style: self.preferences.announcementStyle)
+                // Speak the exact boundary time that was scheduled. This guarantees
+                // we never announce one minute before due to sub-second timer jitter.
+                let text = self.formatSpokenTime(for: nextDate, style: self.preferences.announcementStyle)
                 self.speak(text: text)
             }
-            self.scheduleNextAnnouncement()
+
+            // Advance scheduling from after the boundary that just fired.
+            self.scheduleNextAnnouncement(after: nextDate.addingTimeInterval(1.0))
         }
         timer.resume()
         scheduledTimer = timer
@@ -200,9 +215,11 @@ public final class TimeAnnouncer: NSObject, AVSpeechSynthesizerDelegate, @unchec
     /// Formats the current time into spoken natural text according to chosen style and 12/24-hour setting.
     public func formatSpokenTime(for date: Date, style: AnnouncementStyle, is24Hour: Bool? = nil) -> String {
         let use24Hour = is24Hour ?? preferences.is24HourEffective
+        // Round to nearest second to avoid sub-second boundary truncation
+        let roundedDate = date.addingTimeInterval(0.5)
         let calendar = Calendar.current
-        let hour24 = calendar.component(.hour, from: date)
-        let minute = calendar.component(.minute, from: date)
+        let hour24 = calendar.component(.hour, from: roundedDate)
+        let minute = calendar.component(.minute, from: roundedDate)
 
         if use24Hour {
             return format24HourTime(hour24: hour24, minute: minute, style: style)
